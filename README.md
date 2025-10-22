@@ -2,8 +2,6 @@
 
 Weather Forecasting Project for Big Data Course - HUIT (Ho Chi Minh City University of Industry and Trade)
 
-**Author:** Nguyen Minh Tho  
-**University:** HUIT (Ho Chi Minh City University of Industry and Trade)  
 **Project:** Big Data Weather Forecasting System
 
 This project uses Spark, Hadoop, and Kafka to input weather data into two trained models (Random Forest and Logistic Regression) to predict weather conditions (rain or no rain) and rainfall in real-time. The predictions are then displayed on a web interface.
@@ -260,32 +258,6 @@ webapp:5000     # Web interface
 
 ![Web UI](./images/web-UI.png)
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Model Checksum Errors**
-   ```
-   Solution: Delete all .crc files in webapp/app/models directory
-   ```
-
-2. **Kafka Connection Failed**
-   ```
-   Solution: Ensure Kafka is running and use correct host (kafka for Docker, localhost for manual)
-   ```
-
-3. **Port Already in Use**
-   ```bash
-   # Check what's using the port
-   netstat -ano | findstr :5000
-   # Kill the process or change port in docker-compose.yml
-   ```
-
-4. **MongoDB Connection Error**
-   ```
-   Solution: Check MONGO_HOST in .env (use 'mongodb' for Docker, 'localhost' for manual)
-   ```
-
 ### View Logs
 
 ```bash
@@ -331,11 +303,3 @@ Weather-Forecast/
 - **PySpark ML** - Machine learning pipeline
 - **Docker & Docker Compose** - Containerization
 
-## License
-
-This project is for educational purposes as part of the Big Data course at HUIT.
-
-## Author
-
-**Nguyen Minh Tho**  
-Ho Chi Minh City University of Industry and Trade (HUIT)
