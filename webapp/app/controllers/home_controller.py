@@ -8,13 +8,14 @@ def home():
     predicts = list(db.predict.find().sort('predictedAt', DESCENDING))
 
     for predict in predicts:
-        predicted_at = predict['predictedAt']
-        predict['date'] = predicted_at.strftime('%d/%m/%Y')
-        predict['time'] = predicted_at.strftime('%H:%M:%S')
+        predicted_at = predict.get('predictedAt') or predict.get('predicted_at')
+        if predicted_at:
+            predict['date'] = predicted_at.strftime('%d/%m/%Y')
+            predict['time'] = predicted_at.strftime('%H:%M:%S')
 
     return render_template('home.html', **locals())
 
-def getData():
+def get_data():
     predicts = list(db.predict.find().sort('predictedAt', DESCENDING))
     result = []
     for predict in predicts:

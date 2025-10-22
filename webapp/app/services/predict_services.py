@@ -8,7 +8,8 @@ import pandas as pd
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 
-def weatherPrediction(data, model):
+def weather_prediction(data, model):
+    """Predict weather condition (rain/no rain) using trained model"""
     spark = SparkSession.builder.appName("BigData_Weather_Forecast").getOrCreate()
 
     df = spark.createDataFrame(pd.DataFrame([data]))
@@ -19,7 +20,8 @@ def weatherPrediction(data, model):
 
     return result_list
 
-def amountOfRain(data, model):
+def amount_of_rain(data, model):
+    """Predict rainfall amount in millimeters using trained model"""
     spark = SparkSession.builder.appName("BigData_Weather_Forecast").getOrCreate()
 
     df = spark.createDataFrame(pd.DataFrame([data]))

@@ -7,7 +7,7 @@ from database.mongodb import db
 from datetime import datetime
 from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
-from app.services.predictServices import weatherPrediction, amountOfRain
+from app.services.predict_services import weather_prediction, amount_of_rain
 import copy
 
 # Disable checksum validation for Hadoop
@@ -98,23 +98,23 @@ def consume_messages(consumer):
         # print(f"\nReceived message: \n{message.value}")
 
         # Predict weather condition using trained model
-        weather_prediction = weatherPrediction(message.value, weather_model)
+        weather_pred = weather_prediction(message.value, weather_model)
 
         # If prediction is rain, estimate rainfall amount; otherwise set to zero
-        weather_prediction[0]['predict'] = convert_prediction(weather_prediction[0].pop('prediction', None))
-        if(weather_prediction[0]['predict'] == "rain"):
-            rain_prediction = amountOfRain(weather_prediction[0], rain_model)
+        weather_pred[0]['predict'] = convert_prediction(weather_pred[0].pop('prediction', None))
+        if(weather_pred[0]['predict'] == "rain"):
+            rain_pred = amount_of_rain(weather_pred[0], rain_model)
             
-            rain_prediction[0]['rain_prediction'] = map_label_to_precipMM(rain_prediction[0].pop('prediction'))
-            rain_prediction[0]['predict_origin'] = predict_origin
-            rain_prediction[0]['precipMM_origin'] = precipMM_origin
-            rain_prediction[0]['predictedAt'] = current_time
+            rain_pred[0]['rain_prediction'] = map_label_to_precipMM(rain_pred[0].pop('prediction'))
+            rain_pred[0]['predict_origin'] = predict_origin
+            rain_pred[0]['precip_mm_origin'] = precipMM_origin
+            rain_pred[0]['predicted_at'] = current_time
 
-            db.predict.insert_one(rain_prediction[0])
+            db.predict.insert_one(rain_pred[0])
         else:
-            weather_prediction[0]['rain_prediction'] = 0
-            weather_prediction[0]['predict_origin'] = predict_origin
-            weather_prediction[0]['precipMM_origin'] = precipMM_origin
-            weather_prediction[0]['predictedAt'] = current_time
+            weather_pred[0]['rain_prediction'] = 0
+            weather_pred[0]['predict_origin'] = predict_origin
+            weather_pred[0]['precip_mm_origin'] = precipMM_origin
+            weather_pred[0]['predicted_at'] = current_time
 
-            db.predict.insert_one(weather_prediction[0])
+            db.predict.insert_one(weather_pred[0])

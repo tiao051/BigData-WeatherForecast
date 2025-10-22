@@ -289,7 +289,7 @@ Weather-Forecast/
     │   ├── models/            # ML models for inference
     │   ├── controllers/       # Flask routes
     │   └── services/          # Prediction services
-    ├── mykafka/               # Kafka consumer
+    ├── kafka_consumer/        # Kafka consumer
     ├── database/              # MongoDB connection
     └── templates/             # Web UI templates
 ```

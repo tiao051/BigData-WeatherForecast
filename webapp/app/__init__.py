@@ -1,5 +1,5 @@
 from flask import Flask
-from mykafka  import init_kafka
+from kafka_consumer import init_kafka
 from routes import main
 import os
 
