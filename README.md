@@ -254,10 +254,6 @@ webapp:5000     # Web interface
 
 ![System Architecture](./images/system-architecture.png)
 
-### Web Interface
-
-![Web UI](./images/web-UI.png)
-
 ### View Logs
 
 ```bash
