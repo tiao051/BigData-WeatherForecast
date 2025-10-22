@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dự báo thời tiết</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon_io/favicon.ico') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>DỰ BÁO THỜI TIẾT</h1>
+    <table class="table">
+        <thead>
+          <tr>
+            <th scope="col" class="table-info">Id</th>
+            <th scope="col" class="table-secondary">Thời tiết gốc</th>
+            <th scope="col">Thời tiết dự đoán</th>
+            <th scope="col" class="table-success">Lượng mưa gốc</th>
+            <th scope="col" class="table-danger">Lượng mưa dự đoán</th>
+            <th scope="col" class="table-primary">Ngày dự đoán</th>
+            <th scope="col" class="table-warning">Thời gian dự đoán</th>
+          </tr>
+        </thead>
+        <tbody id="predict-table-body">
+            {% for predict in predicts %}
+            <tr>
+                <th scope="row" class="table-info">{{ loop.index }}</th>
+                <td class="table-secondary">{{ predict.predict_origin }}</td>
+                <td>{{ predict.predict }}</td>
+                <td class="table-success">{{ predict.precipMM_origin }}</td>
+                <td class="table-danger">{{ predict.rain_prediction }}</td>
+                <td class="table-primary">{{ predict.date }}</td>
+                <td class="table-warning">{{ predict.time }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+      </table>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript">
+        function fetchData() {
+            var endpoint = window.location.origin + '/getData';
+            $.ajax({
+                url: endpoint, // Endpoint trả về dữ liệu mới
+                type: 'GET',
+                success: function(data) {
+                    let id = 1;
+                    var tableContent = '';
+                    data.forEach(function(predict) {
+                        tableContent += '<tr>' +
+                                            '<th scope="row" class="table-info">' + id++ + '</th>' +
+                                            '<td class="table-secondary">' + predict.predict_origin + '</td>' +
+                                            '<td>' + predict.predict + '</td>' +
+                                            '<td class="table-success">' + predict.precipMM_origin + '</td>' +
+                                            '<td class="table-danger">' + predict.rain_prediction + '</td>' +
+                                            '<td class="table-primary">' + predict.date + '</td>' +
+                                            '<td class="table-warning">' + predict.time + '</td>' +
+                                        '</tr>';
+                    });
+
+                    // Cập nhật bảng
+                    $('#predict-table-body').html(tableContent);
+                },
+                complete: function() {
+                    // Gọi lại sau một khoảng thời gian cố định
+                    setTimeout(fetchData, 1000); // 10000 ms = 10 giây
+                }
+            });
+        }
+    
+        // Khởi đầu polling khi tải trang
+        $(document).ready(function() {
+            fetchData();
+        });
+    </script>
+</body>
+</html>

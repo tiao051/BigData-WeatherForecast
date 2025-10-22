@@ -1,0 +1,10 @@
+webapp/venv/
+webapp/__pycache__/
+webapp/**/__pycache__/
+webapp/**/*.pyc
+webapp/.env
+machine_learning/notebooks/.ipynb_checkpoints/
+**/.git/
+**/.gitignore
+**/node_modules/
+**/*.log
