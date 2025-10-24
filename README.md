@@ -28,12 +28,12 @@ cp .env.example .env
 # Default values are provided for quick start
 ```
 
-**Step 2: Start the System**
+**Step 2: Start the Core System**
 
-The entire system can be run using Docker Compose with a single command:
+Start the core services (Kafka, MongoDB, Web App):
 
 ```bash
-docker-compose up --build
+docker-compose up -d --build
 ```
 
 This will start:
@@ -43,6 +43,31 @@ This will start:
 - Web Application (port 5000)
 
 Access the web interface at: `http://localhost:5000`
+
+**Step 3: Start the Producer (Data Streaming)**
+
+The producer sends weather data to Kafka. You have two options:
+
+**Option A: Docker Service (Recommended)**
+```bash
+# Start producer in continuous mode (loops 100 records with 1s delay)
+docker-compose --profile producer up -d
+
+# Check producer logs
+docker logs weather-producer -f
+```
+
+**Option B: Standalone Python Script**
+```bash
+# Quick test: Send 50 records
+python producer/producer.py --records 50 --delay 0.1
+
+# Continuous streaming: Loop 100 records forever
+python producer/producer.py --continuous --records 100 --delay 1
+
+# Send all records as fast as possible (takes ~4 hours)
+python producer/producer.py --records all --delay 0
+```
 
 **Optional: Start Mongo Express (Database UI)**
 
@@ -98,35 +123,40 @@ DB_NAME=weather_forecast
 
 **Note:** When using Docker, use service names (`kafka`, `mongodb`) instead of `localhost`.
 
-### 3. Start the System
+### 3. Producer Configuration
+
+The producer supports various modes via command-line arguments:
 
 ```bash
-# Start all services
-docker-compose up --build
+# Quick test (50 records, 0.1s delay)
+python producer/producer.py --records 50 --delay 0.1
 
-# Or run in detached mode
-docker-compose up -d --build
+# Continuous mode (loops 100 records forever, 1s delay)
+python producer/producer.py --continuous --records 100 --delay 1
+
+# Send all 135K records as fast as possible
+python producer/producer.py --records all --delay 0
+
+# Custom configuration
+python producer/producer.py \
+  --records 1000 \
+  --delay 0.5 \
+  --kafka localhost:9092 \
+  --topic bigdata \
+  --dataset ./machine_learning/dataset/weather_dataset.csv
 ```
 
-The system will automatically:
-- Start Zookeeper and Kafka
-- Create MongoDB database and collections
-- Launch the web application
-- Begin consuming messages from Kafka
+**Docker Mode:**
+```bash
+# Start producer as Docker service
+docker-compose --profile producer up -d
 
-### 4. Run Kafka Producer
+# View producer logs
+docker logs weather-producer -f
 
-Open `machine_learning/notebooks/Weather_producer.ipynb` in Jupyter Notebook or VS Code.
-
-Configure the Kafka connection:
-
-```python
-# In Weather_producer.ipynb
-bootstrap_servers = 'localhost:9092'  # Use localhost since producer runs outside Docker
-topic_name = 'weather_topic'  # Must match KAFKA_TOPIC_NAME in .env
+# Stop producer
+docker-compose --profile producer down
 ```
-
-Run all cells to start streaming weather data to Kafka.
 
 ### 5. View Results
 
