@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -163,6 +164,7 @@
         let totalPages = 1;
         let totalRecords = 0;
         const perPage = 50;
+        let socket;
 
         function updateStats(totalCount, currentPageRainCount) {
             $('#total-predictions').text(totalCount);
@@ -293,36 +295,92 @@
                     renderPagination(currentPage, totalPages);
                     
                     // Render table data
-                    let id = (currentPage - 1) * perPage + 1;
-                    var tableContent = '';
-                    data.forEach(function(predict) {
-                        const actualRainfall = parseFloat(predict.precip_mm_origin || predict.precipMM_origin || 0).toFixed(2);
-                        const predictedRainfall = parseFloat(predict.rain_prediction || 0).toFixed(2);
-                        
-                        tableContent += '<tr>' +
-                            '<td><span class="row-number">' + id++ + '</span></td>' +
-                            '<td>' + getWeatherBadge(predict.predict_origin) + '</td>' +
-                            '<td>' + getWeatherBadge(predict.predict) + '</td>' +
-                            '<td><span class="rainfall-value">' + actualRainfall + '</span></td>' +
-                            '<td><span class="rainfall-value predicted">' + predictedRainfall + '</span></td>' +
-                            '<td><span class="date-text">' + predict.date + '</span></td>' +
-                            '<td><span class="time-text">' + predict.time + '</span></td>' +
-                            '<td>' + getStatusBadge(predict.predict_origin, predict.predict) + '</td>' +
-                        '</tr>';
-                    });
-
-                    $('#predict-table-body').html(tableContent);
-                },
-                complete: function() {
-                    setTimeout(function() {
-                        fetchData(currentPage);
-                    }, 2000);
+                    renderTableData(data);
                 }
+            });
+        }
+
+        function renderTableData(data) {
+            let id = (currentPage - 1) * perPage + 1;
+            var tableContent = '';
+            data.forEach(function(predict) {
+                const actualRainfall = parseFloat(predict.precip_mm_origin || predict.precipMM_origin || 0).toFixed(2);
+                const predictedRainfall = parseFloat(predict.rain_prediction || 0).toFixed(2);
+                
+                tableContent += '<tr>' +
+                    '<td><span class="row-number">' + id++ + '</span></td>' +
+                    '<td>' + getWeatherBadge(predict.predict_origin) + '</td>' +
+                    '<td>' + getWeatherBadge(predict.predict) + '</td>' +
+                    '<td><span class="rainfall-value">' + actualRainfall + '</span></td>' +
+                    '<td><span class="rainfall-value predicted">' + predictedRainfall + '</span></td>' +
+                    '<td><span class="date-text">' + predict.date + '</span></td>' +
+                    '<td><span class="time-text">' + predict.time + '</span></td>' +
+                    '<td>' + getStatusBadge(predict.predict_origin, predict.predict) + '</td>' +
+                '</tr>';
+            });
+            $('#predict-table-body').html(tableContent);
+        }
+
+        function handleNewPredictions(data) {
+            console.log('✓ WebSocket: Received ' + data.count + ' new predictions');
+            
+            // If on first page, refresh to show new data
+            if (currentPage === 1) {
+                fetchData(1);
+            }
+            
+            // Update total count in stats
+            totalRecords += data.count;
+            $('#total-predictions').text(totalRecords);
+            
+            // Show notification badge
+            showNewDataNotification(data.count);
+        }
+
+        function showNewDataNotification(count) {
+            // Create notification badge
+            const notification = $('<div class="new-data-notification">' +
+                '<i class="fas fa-check-circle"></i> ' + count + ' new predictions added!' +
+                '</div>');
+            
+            $('body').append(notification);
+            notification.addClass('show');
+            
+            // Remove after 3 seconds
+            setTimeout(function() {
+                notification.removeClass('show');
+                setTimeout(function() {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+        }
+
+        function initWebSocket() {
+            // Connect to WebSocket server
+            socket = io.connect(window.location.origin);
+            
+            socket.on('connect', function() {
+                console.log('✓ WebSocket connected');
+                $('.live-indicator span:last-child').text('Live Connected');
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('✗ WebSocket disconnected');
+                $('.live-indicator span:last-child').text('Reconnecting...');
+            });
+            
+            // Listen for new predictions
+            socket.on('new_predictions', function(data) {
+                handleNewPredictions(data);
             });
         }
     
         $(document).ready(function() {
+            // Initial data load
             fetchData(1);
+            
+            // Initialize WebSocket for real-time updates
+            initWebSocket();
         });
     </script>
 </body>

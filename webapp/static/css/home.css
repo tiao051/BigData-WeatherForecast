@@ -405,6 +405,36 @@ body {
     font-size: 0.75rem;
 }
 
+/* Real-time Notification Badge */
+.new-data-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--success);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.new-data-notification.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.new-data-notification i {
+    font-size: 1.25rem;
+}
+
 /* Footer - Minimalist */
 .footer {
     background: #ffffff;

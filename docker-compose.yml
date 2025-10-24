@@ -79,7 +79,7 @@ services:
     volumes:
       - ./machine_learning/dataset:/app/dataset:ro
     # Fast mode: --delay 0 for maximum throughput with batch processing
-    command: ["python", "producer.py", "--continuous", "--delay", "0", "--records", "100"]
+    command: ["python", "producer.py", "--continuous", "--delay", "0.05", "--records", "100"]
     restart: unless-stopped
     networks:
       - weather-network

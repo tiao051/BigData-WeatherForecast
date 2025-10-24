@@ -10,6 +10,12 @@ from pyspark.ml import PipelineModel
 from app.services.predict_services import weather_prediction, amount_of_rain
 import copy
 
+# Import socketio for real-time push notifications
+try:
+    from app import socketio
+except ImportError:
+    socketio = None  # Fallback if not available
+
 # Disable checksum validation for Hadoop
 os.environ['SPARK_LOCAL_IP'] = '127.0.0.1'
 
@@ -81,8 +87,7 @@ def consume_messages(consumer):
     import pandas as pd
     from pyspark.sql.functions import col
     
-    # Batch processing configuration
-    BATCH_SIZE = 50  # Process 50 messages at a time (adjust as needed)
+    BATCH_SIZE = 100 
     batch = []
     
     for message in consumer:
@@ -161,3 +166,25 @@ def process_batch(batch_data):
     if predictions_to_insert:
         db.predict.insert_many(predictions_to_insert)
         print(f"Processed batch: {len(predictions_to_insert)} predictions inserted")
+        
+        # Emit real-time WebSocket event with new predictions
+        if socketio:
+            # Format predictions for WebSocket transmission
+            formatted_predictions = []
+            for pred in predictions_to_insert:
+                pred_dict = {}
+                for key, value in pred.items():
+                    if isinstance(value, datetime):
+                        pred_dict[key] = value.isoformat()
+                        pred_dict['date'] = value.strftime('%d/%m/%Y')
+                        pred_dict['time'] = value.strftime('%H:%M:%S')
+                    else:
+                        pred_dict[key] = value
+                formatted_predictions.append(pred_dict)
+            
+            # Push new predictions to all connected clients
+            socketio.emit('new_predictions', {
+                'predictions': formatted_predictions,
+                'count': len(formatted_predictions)
+            }, namespace='/')
+            print(f"✓ WebSocket: Pushed {len(formatted_predictions)} predictions to clients")
