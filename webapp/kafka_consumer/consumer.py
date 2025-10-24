@@ -78,6 +78,13 @@ def create_consumer():
     return consumer
 
 def consume_messages(consumer):
+    import pandas as pd
+    from pyspark.sql.functions import col
+    
+    # Batch processing configuration
+    BATCH_SIZE = 50  # Process 50 messages at a time (adjust as needed)
+    batch = []
+    
     for message in consumer:
         # Convert numeric string columns to float for model inference
         numeric_columns = ['moon_illumination', 'time','tempC','tempF','windspeedMiles','windspeedKmph','winddirDegree', 'weatherCode','precipInches','humidity','visibility','visibilityMiles','pressure','pressureInches','cloudcover','HeatIndexC','HeatIndexF','DewPointC','DewPointF','WindChillC','WindChillF','WindGustMiles','WindGustKmph','FeelsLikeC','FeelsLikeF','uvIndex']
@@ -85,36 +92,72 @@ def consume_messages(consumer):
             float_value = float(message.value[column])
             message.value[column] = float_value
 
-        predict_origin = message.value['predict']
-        precipMM_origin = message.value['precipMM']
+        # Add to batch
+        batch.append(message.value)
+        
+        # Process batch when it reaches BATCH_SIZE
+        if len(batch) >= BATCH_SIZE:
+            process_batch(batch)
+            batch = []
 
-        current_time = datetime.now() 
-
-        data = copy.deepcopy(message.value)
-        data['createdAt'] = current_time
-        data['updatedAt'] = current_time
-        db.data.insert_one(data)
-
-        # print(f"\nReceived message: \n{message.value}")
-
-        # Predict weather condition using trained model
-        weather_pred = weather_prediction(message.value, weather_model)
-
-        # If prediction is rain, estimate rainfall amount; otherwise set to zero
-        weather_pred[0]['predict'] = convert_prediction(weather_pred[0].pop('prediction', None))
-        if(weather_pred[0]['predict'] == "rain"):
-            rain_pred = amount_of_rain(weather_pred[0], rain_model)
-            
-            rain_pred[0]['rain_prediction'] = map_label_to_precipMM(rain_pred[0].pop('prediction'))
-            rain_pred[0]['predict_origin'] = predict_origin
-            rain_pred[0]['precip_mm_origin'] = precipMM_origin
-            rain_pred[0]['predicted_at'] = current_time
-
-            db.predict.insert_one(rain_pred[0])
+def process_batch(batch_data):
+    """Process a batch of messages efficiently"""
+    if not batch_data:
+        return
+    
+    import pandas as pd
+    from pyspark.sql.functions import col
+    
+    current_time = datetime.now()
+    
+    # Store raw data in MongoDB (bulk insert)
+    raw_data_batch = []
+    for data in batch_data:
+        data_copy = copy.deepcopy(data)
+        data_copy['createdAt'] = current_time
+        data_copy['updatedAt'] = current_time
+        raw_data_batch.append(data_copy)
+    
+    if raw_data_batch:
+        db.data.insert_many(raw_data_batch)
+    
+    # Create DataFrame for batch prediction
+    df = spark.createDataFrame(pd.DataFrame(batch_data))
+    
+    # Weather prediction for entire batch
+    weather_predictions = weather_model.transform(df)
+    weather_results = weather_predictions.select([c for c in weather_predictions.columns if c not in ['label', 'features', 'rawPrediction', 'probability']]).collect()
+    
+    # Process predictions
+    predictions_to_insert = []
+    rain_batch = []
+    
+    for i, row in enumerate(weather_results):
+        row_dict = row.asDict()
+        predict_value = convert_prediction(row_dict.pop('prediction', None))
+        row_dict['predict'] = predict_value
+        row_dict['predict_origin'] = batch_data[i]['predict']
+        row_dict['precip_mm_origin'] = batch_data[i]['precipMM']
+        row_dict['predicted_at'] = current_time
+        
+        if predict_value == "rain":
+            rain_batch.append(row_dict)
         else:
-            weather_pred[0]['rain_prediction'] = 0
-            weather_pred[0]['predict_origin'] = predict_origin
-            weather_pred[0]['precip_mm_origin'] = precipMM_origin
-            weather_pred[0]['predicted_at'] = current_time
-
-            db.predict.insert_one(weather_pred[0])
+            row_dict['rain_prediction'] = 0
+            predictions_to_insert.append(row_dict)
+    
+    # Process rain predictions in batch if any
+    if rain_batch:
+        rain_df = spark.createDataFrame(pd.DataFrame(rain_batch))
+        rain_predictions = rain_model.transform(rain_df)
+        rain_results = rain_predictions.select([c for c in rain_predictions.columns if c not in ['label', 'features', 'rawPrediction', 'probability']]).collect()
+        
+        for row in rain_results:
+            row_dict = row.asDict()
+            row_dict['rain_prediction'] = map_label_to_precipMM(row_dict.pop('prediction'))
+            predictions_to_insert.append(row_dict)
+    
+    # Bulk insert predictions
+    if predictions_to_insert:
+        db.predict.insert_many(predictions_to_insert)
+        print(f"Processed batch: {len(predictions_to_insert)} predictions inserted")
