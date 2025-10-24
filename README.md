@@ -16,6 +16,20 @@ This project uses Spark, Hadoop, and Kafka to input weather data into two traine
 
 ## Quick Start with Docker
 
+**Step 1: Configure Environment Variables**
+
+Copy the example environment file and update with your credentials:
+
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit .env with your preferred credentials
+# Default values are provided for quick start
+```
+
+**Step 2: Start the System**
+
 The entire system can be run using Docker Compose with a single command:
 
 ```bash
@@ -29,6 +43,14 @@ This will start:
 - Web Application (port 5000)
 
 Access the web interface at: `http://localhost:5000`
+
+**Optional: Start Mongo Express (Database UI)**
+
+```bash
+docker-compose --profile ui up -d
+```
+
+Access Mongo Express at: `http://localhost:8081`
 
 ## Usage
 
@@ -50,24 +72,29 @@ Run `weather-forecast.ipynb` and `rainfall-prediction.ipynb` in `machine_learnin
 Get-ChildItem -Path .\webapp\app\models -Filter "*.crc" -Recurse | Remove-Item
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure Environment Variables (Already Done in Quick Start)
 
-Create a `.env` file in the `webapp` directory:
-
-```bash
-# Copy from example
-cp .env.example webapp/.env
-```
-
-Edit the `.env` file with your configuration:
+The `.env` file contains all configuration:
 
 ```env
-KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-KAFKA_TOPIC_NAME=weather_topic
+# Application
+PORT=5000
+DEBUG=True
+
+# Kafka
+KAFKA_TOPIC_NAME=bigdata
+KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+KAFKA_GROUP_ID=weather_group
+
+# MongoDB
 MONGO_HOST=mongodb
 MONGO_PORT=27017
-DB_NAME=Weather-Forecast
+MONGO_USERNAME=admin
+MONGO_PASSWORD=admin123
+DB_NAME=weather_forecast
 ```
+
+**Security Note:** Never commit `.env` to git! Use `.env.example` as template.
 
 **Note:** When using Docker, use service names (`kafka`, `mongodb`) instead of `localhost`.
 
