@@ -26,50 +26,40 @@ def create_producer(bootstrap_servers):
     
     for attempt in range(max_retries):
         try:
-            print(f"Connecting to Kafka at {bootstrap_servers}... (Attempt {attempt + 1}/{max_retries})")
             producer = KafkaProducer(
                 bootstrap_servers=bootstrap_servers,
                 value_serializer=lambda x: json.dumps(x).encode('utf-8'),
                 max_block_ms=5000
             )
-            print("Connected to Kafka successfully!")
             return producer
+        
         except NoBrokersAvailable:
             if attempt < max_retries - 1:
-                print(f"Kafka not available yet. Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
             else:
-                print("Failed to connect to Kafka after multiple attempts")
                 sys.exit(1)
         except Exception as e:
-            print(f"Error connecting to Kafka: {e}")
             sys.exit(1)
-
 
 def load_dataset(file_path, limit=None):
     """Load weather dataset from CSV file"""
     try:
-        print(f"Reading data from: {file_path}")
         df = pd.read_csv(file_path)
         
         if limit and limit > 0:
             df = df.head(limit)
-            print(f"Loaded {len(df)} records (limited)")
         else:
             print(f"Loaded {len(df)} records")
         
         return df
     except FileNotFoundError:
-        print(f"Error: Dataset file not found at {file_path}")
         sys.exit(1)
     except Exception as e:
-        print(f"Error reading dataset: {e}")
         sys.exit(1)
 
 
 def send_data(producer, topic_name, data_df, delay=0.1, continuous=False):
     """Send weather data to Kafka topic"""
-    print(f"Starting to send {len(data_df)} records to Kafka topic '{topic_name}'")
     if continuous:
         print("Continuous mode: Will loop forever")
 

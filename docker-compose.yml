@@ -78,7 +78,7 @@ services:
       DATASET_PATH: /app/dataset/weather_dataset.csv
     volumes:
       - ./machine_learning/dataset:/app/dataset:ro
-    command: ["python", "producer.py", "--continuous", "--delay", "1", "--records", "100"]
+    command: ["python", "producer.py", "--continuous", "--delay", "0", "--records", "100"]
     restart: unless-stopped
     networks:
       - weather-network
