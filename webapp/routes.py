@@ -1,7 +1,7 @@
 from flask import Blueprint, send_from_directory
 import os
 
-from app.controllers.home_controller import *
+from app.controllers.home_controller import home, get_data
 
 main = Blueprint('main', __name__)
 
@@ -12,7 +12,3 @@ def home_route():
 @main.route('/get-data', methods=['GET'])
 def get_data_route():
     return get_data()
-
-@main.route('/<path:undefined_path>', methods=['GET'])
-def notfound_route(undefined_path):
-    return notfound()
