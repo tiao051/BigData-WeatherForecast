@@ -1,9 +1,3 @@
-"""
-Weather Prediction Services using PySpark ML
-Author: Nguyen Minh Tho
-University: HUIT
-"""
-
 import pandas as pd
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col

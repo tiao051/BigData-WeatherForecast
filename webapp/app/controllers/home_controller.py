@@ -34,6 +34,3 @@ def get_data():
 
     # Return prediction results as JSON response
     return jsonify(result)
-
-def notfound():
-    return render_template('notfound.html')
