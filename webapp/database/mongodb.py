@@ -25,3 +25,17 @@ else:
 
 # Connect to the specified database
 db = client[DB_NAME]
+
+# Create indexes for better query performance
+def create_indexes():
+    """Create database indexes for optimized query performance"""
+    try:
+        # Index on predicted_at for sorting (descending order)
+        db.predict.create_index([("predicted_at", -1)], background=True)
+        print("✓ MongoDB indexes created successfully")
+    except Exception as e:
+        print(f"⚠ Warning: Could not create indexes - {e}")
+
+# Initialize indexes when module is imported
+create_indexes()
+
