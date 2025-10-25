@@ -30,7 +30,7 @@ cp .env.example .env
 
 **Step 2: Start the Core System**
 
-Start the core services (Kafka, MongoDB, Web App):
+Start the core services (Kafka, MongoDB, HDFS, Web App):
 
 ```bash
 docker-compose up -d --build
@@ -40,9 +40,13 @@ This will start:
 - Zookeeper (port 2181)
 - Kafka (port 9092)
 - MongoDB (port 27017)
+- HDFS NameNode (ports 9870, 9000) + 3 DataNodes
 - Web Application (port 5000)
 
+**Note on HDFS:** The system includes a full HDFS cluster for demonstration. However, ML models are loaded from the local filesystem (`USE_HDFS=false` in `.env`) to avoid checksum errors that can occur when copying Spark ML models to HDFS. The HDFS infrastructure, initialization scripts (`scripts/init_hdfs.ps1`, `scripts/deploy_models.ps1`), and related code are maintained to demonstrate HDFS integration capabilities.
+
 Access the web interface at: `http://localhost:5000`
+Access HDFS Web UI at: `http://localhost:9870`
 
 **Step 3: Start the Producer (Data Streaming)**
 
@@ -284,6 +288,34 @@ To retrain and update models:
 
 ## Architecture
 
+### HDFS Integration
+
+The project includes a complete Hadoop HDFS cluster with:
+- **NameNode**: Manages file system metadata (port 9870 Web UI, 9000 API)
+- **3 DataNodes**: Store actual data blocks with replication factor 2
+
+**Model Storage Options:**
+
+1. **Local Filesystem (Default - Recommended)**
+   - Set `USE_HDFS=false` in `.env`
+   - Models loaded from `/app/models/` in container
+   - Avoids checksum errors from corrupted HDFS files
+   - Faster startup and more reliable
+
+2. **HDFS Storage (For Demonstration)**
+   - Set `USE_HDFS=true` in `.env`
+   - Initialize HDFS: `./scripts/init_hdfs.ps1`
+   - Deploy models: `./scripts/deploy_models.ps1`
+   - Models loaded from `hdfs://namenode:9000/models/`
+   
+**Why Local by Default?**
+Spark ML models contain metadata files that can get corrupted during HDFS transfers, causing checksum validation errors. The local filesystem approach is more reliable for containerized deployments while maintaining all HDFS infrastructure for learning and demonstration.
+
+**HDFS Scripts Included:**
+- `scripts/init_hdfs.ps1` - Initialize HDFS directories
+- `scripts/deploy_models.ps1` - Deploy models to HDFS
+- `kafka_consumer/hdfs_utils.py` - Save predictions to HDFS (optional)
+
 ### System Flow
 
 1. **Data Source** → Weather data from worldweatheronline.com
@@ -300,8 +332,18 @@ To retrain and update models:
 zookeeper:2181  # Kafka coordination
 kafka:9092      # Message streaming
 mongodb:27017   # Data storage
+namenode:9000   # HDFS NameNode API
+namenode:9870   # HDFS Web UI
+datanode1-3     # HDFS DataNodes (3 replicas)
 webapp:5000     # Web interface
 ```
+
+**Model Loading Strategy:**
+- Models are stored in `machine_learning/models/` on the host
+- Docker copies models to `/app/models/` in the webapp container
+- By default, `USE_HDFS=false` loads models from local filesystem to avoid HDFS checksum errors
+- HDFS cluster and deployment scripts are included for demonstration purposes
+- To use HDFS: set `USE_HDFS=true` in `.env` and run `scripts/deploy_models.ps1`
 
 ### Model Training Diagram
 

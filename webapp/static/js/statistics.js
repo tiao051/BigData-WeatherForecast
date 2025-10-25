@@ -287,6 +287,9 @@ function updateCharts(data) {
 
     // Update Feature Chart (default: temperature)
     updateFeatureChart('temperature');
+    
+    // Load Error Clusters
+    loadErrorClusters(currentRange);
 }
 
 // Update feature impact chart
@@ -304,6 +307,99 @@ function updateFeatureChart(feature) {
     charts.feature.data.datasets[0].data = accuracies;
     charts.feature.data.counts = counts; // Store for tooltip
     charts.feature.update();
+}
+
+// Load error clusters analysis
+function loadErrorClusters(range = 'all') {
+    const container = $('#error-clusters-content');
+    container.html('<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Running K-Means clustering analysis...</div>');
+    
+    $.ajax({
+        url: `/api/error-clusters?range=${range}`,
+        method: 'GET',
+        success: function(data) {
+            if (data.error) {
+                container.html(`
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>${data.message || data.error}</p>
+                        <small>Total incorrect predictions: ${data.count || 0}</small>
+                    </div>
+                `);
+                return;
+            }
+            
+            // Render cluster summary
+            let html = `
+                <div class="cluster-summary">
+                    <h4><i class="fas fa-chart-pie"></i> Clustering Summary</h4>
+                    <p>${data.summary}</p>
+                </div>
+                <div class="cluster-grid">
+            `;
+            
+            // Render each cluster
+            data.clusters.forEach((cluster, index) => {
+                const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+                const color = colors[index % colors.length];
+                
+                html += `
+                    <div class="cluster-card" style="border-left: 4px solid ${color}">
+                        <div class="cluster-header">
+                            <span class="cluster-title">
+                                <i class="fas fa-layer-group"></i> Cluster ${cluster.cluster_id}
+                            </span>
+                            <span class="cluster-size">${cluster.size} errors (${cluster.percentage}%)</span>
+                        </div>
+                        
+                        <div class="cluster-stats">
+                            <div class="stat-row">
+                                <span class="stat-label"><i class="fas fa-temperature-high"></i> Avg Temperature</span>
+                                <span class="stat-value">${cluster.characteristics.tempC.mean}°C</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label"><i class="fas fa-tint"></i> Avg Humidity</span>
+                                <span class="stat-value">${cluster.characteristics.humidity.mean}%</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label"><i class="fas fa-compress-arrows-alt"></i> Avg Pressure</span>
+                                <span class="stat-value">${cluster.characteristics.pressure.mean} mb</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label"><i class="fas fa-wind"></i> Avg Wind Speed</span>
+                                <span class="stat-value">${cluster.characteristics.windspeedKmph.mean} km/h</span>
+                            </div>
+                        </div>
+                        
+                        <div class="error-types">
+                            <div class="error-type-badge false-positive">
+                                <i class="fas fa-times-circle"></i> Failed alarms: ${cluster.error_types.over_predicted}
+                            </div>
+                            <div class="error-type-badge false-negative">
+                                <i class="fas fa-exclamation-triangle"></i> Missed rain: ${cluster.error_types.under_predicted}
+                            </div>
+                        </div>
+                        
+                        <div class="cluster-insight">
+                            <i class="fas fa-lightbulb"></i> ${cluster.insight}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.html(html);
+        },
+        error: function(xhr, status, error) {
+            container.html(`
+                <div class="error-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Failed to load error clustering analysis</p>
+                    <small>${error}</small>
+                </div>
+            `);
+        }
+    });
 }
 
 // Event handlers

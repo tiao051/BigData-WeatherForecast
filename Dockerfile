@@ -30,6 +30,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY webapp/ .
 
+# Copy trained ML models from host machine to container
+# These models can be loaded locally instead of from HDFS to avoid checksum errors
+COPY machine_learning/models /app/models
+
 # Expose Flask port
 EXPOSE 5000
 

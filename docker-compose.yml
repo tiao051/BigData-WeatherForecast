@@ -195,6 +195,7 @@ services:
       DB_NAME: ${DB_NAME}
       DEBUG: ${DEBUG}
       HDFS_NAMENODE: namenode:9000
+      USE_HDFS: ${USE_HDFS}
       CORE_CONF_fs_defaultFS: hdfs://namenode:9000
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || curl -f http://localhost:5000/ || exit 1"]

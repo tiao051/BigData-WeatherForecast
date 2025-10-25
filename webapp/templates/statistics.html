@@ -134,7 +134,7 @@
             </div>
 
             <!-- Row 2: Distribution & Feature Impact -->
-            <div class="row g-4">
+            <div class="row g-4 mb-4">
                 <div class="col-lg-4">
                     <div class="chart-card">
                         <div class="chart-header">
@@ -160,6 +160,23 @@
                         </div>
                         <div class="chart-container">
                             <canvas id="featureChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 3: Error Pattern Analysis (K-Means Clustering) -->
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="chart-card error-analysis">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-project-diagram"></i> Error Pattern Analysis (K-Means Clustering)</h3>
+                            <p>Clustering analysis on incorrect predictions to identify common error patterns</p>
+                        </div>
+                        <div id="error-clusters-content">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i> Loading clustering analysis...
+                            </div>
                         </div>
                     </div>
                 </div>

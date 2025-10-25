@@ -305,3 +305,166 @@ def get_data():
             'has_prev': page > 1
         }
     })
+
+def get_error_clusters():
+    """
+    Perform K-Means clustering on incorrect predictions to identify error patterns.
+    Returns clusters with their characteristics and insights.
+    """
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
+    import numpy as np
+    
+    # Get time range filter (default: all time)
+    time_range = request.args.get('range', 'all')
+    
+    # Build aggregation pipeline to find incorrect predictions
+    # Must use $expr to compare two fields
+    pipeline = [
+        {
+            '$addFields': {
+                'is_incorrect': {'$ne': ['$predict', '$predict_origin']}
+            }
+        },
+        {
+            '$match': {'is_incorrect': True}
+        }
+    ]
+    
+    # Add time filter if specified
+    if time_range != 'all':
+        from datetime import timedelta
+        now = datetime.datetime.now(VN_TZ)
+        
+        range_map = {
+            '7d': 7,
+            '30d': 30,
+            '90d': 90,
+        }
+        
+        if time_range in range_map:
+            days = range_map[time_range]
+            start_date = now - timedelta(days=days)
+            pipeline.append({
+                '$match': {'predicted_at': {'$gte': start_date}}
+            })
+    
+    # Get all incorrect predictions using aggregation
+    incorrect_predictions = list(db.predict.aggregate(pipeline))
+    
+    if len(incorrect_predictions) < 10:
+        return jsonify({
+            'error': 'Not enough incorrect predictions for clustering',
+            'count': len(incorrect_predictions),
+            'message': 'Need at least 10 incorrect predictions to perform clustering analysis'
+        })
+    
+    # Extract features for clustering
+    features = []
+    predictions_data = []
+    
+    for pred in incorrect_predictions:
+        try:
+            feature_vector = [
+                float(pred.get('tempC', 0)),
+                float(pred.get('humidity', 0)),
+                float(pred.get('pressure', 0)),
+                float(pred.get('windspeedKmph', 0)),
+                float(pred.get('precip_mm_origin', 0))
+            ]
+            features.append(feature_vector)
+            predictions_data.append(pred)
+        except (ValueError, TypeError):
+            continue
+    
+    if len(features) < 10:
+        return jsonify({
+            'error': 'Not enough valid data for clustering',
+            'count': len(features)
+        })
+    
+    # Convert to numpy array and standardize
+    X = np.array(features)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    # Determine optimal number of clusters (3-5 based on data size)
+    n_clusters = min(4, max(3, len(features) // 50))
+    
+    # Perform K-Means clustering
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    cluster_labels = kmeans.fit_predict(X_scaled)
+    
+    # Analyze each cluster
+    clusters_analysis = []
+    feature_names = ['tempC', 'humidity', 'pressure', 'windspeedKmph', 'precip_mm_origin']
+    
+    for cluster_id in range(n_clusters):
+        cluster_mask = cluster_labels == cluster_id
+        cluster_data = X[cluster_mask]
+        cluster_predictions = [predictions_data[i] for i in range(len(predictions_data)) if cluster_labels[i] == cluster_id]
+        
+        # Calculate statistics
+        cluster_size = len(cluster_data)
+        cluster_mean = cluster_data.mean(axis=0)
+        cluster_std = cluster_data.std(axis=0)
+        
+        # Count error types
+        over_predicted = sum(1 for p in cluster_predictions if p.get('predict') == 'rain' and p.get('predict_origin') != 'rain')  # Dự đoán mưa nhưng thực tế không mưa
+        under_predicted = sum(1 for p in cluster_predictions if p.get('predict') != 'rain' and p.get('predict_origin') == 'rain')  # Dự đoán không mưa nhưng thực tế mưa
+        
+        # Determine cluster characteristics
+        characteristics = {}
+        for i, name in enumerate(feature_names):
+            characteristics[name] = {
+                'mean': round(float(cluster_mean[i]), 2),
+                'std': round(float(cluster_std[i]), 2)
+            }
+        
+        # Generate insight
+        insight = generate_cluster_insight(cluster_id, characteristics, over_predicted, under_predicted)
+        
+        clusters_analysis.append({
+            'cluster_id': int(cluster_id),
+            'size': int(cluster_size),
+            'percentage': round(cluster_size / len(features) * 100, 2),
+            'characteristics': characteristics,
+            'error_types': {
+                'over_predicted': int(over_predicted),  # Dự đoán mưa sai
+                'under_predicted': int(under_predicted)  # Bỏ sót mưa
+            },
+            'insight': insight
+        })
+    
+    return jsonify({
+        'total_errors': len(features),
+        'n_clusters': n_clusters,
+        'clusters': clusters_analysis,
+        'summary': f'Found {n_clusters} distinct error patterns in {len(features)} incorrect predictions'
+    })
+
+def generate_cluster_insight(cluster_id, characteristics, over_pred, under_pred):
+    """Generate human-readable insight for a cluster"""
+    temp = characteristics['tempC']['mean']
+    humidity = characteristics['humidity']['mean']
+    pressure = characteristics['pressure']['mean']
+    wind = characteristics['windspeedKmph']['mean']
+    precip = characteristics['precip_mm_origin']['mean']
+    
+    # Determine weather conditions
+    temp_desc = "hot" if temp > 28 else "cool" if temp < 20 else "moderate"
+    humidity_desc = "high humidity" if humidity > 70 else "low humidity" if humidity < 50 else "moderate humidity"
+    pressure_desc = "low pressure" if pressure < 1010 else "high pressure" if pressure > 1020 else "normal pressure"
+    wind_desc = "strong winds" if wind > 20 else "light winds" if wind < 10 else "moderate winds"
+    
+    # Determine error type
+    if over_pred > under_pred:
+        error_type = f"over-predicts rain ({over_pred} false alarms vs {under_pred} missed)"
+    elif under_pred > over_pred:
+        error_type = f"under-predicts rain ({under_pred} missed vs {over_pred} false alarms)"
+    else:
+        error_type = f"mixed errors ({over_pred} false alarms, {under_pred} missed)"
+    
+    insight = f"Model {error_type} in {temp_desc} weather with {humidity_desc}, {pressure_desc}, and {wind_desc}."
+    
+    return insight

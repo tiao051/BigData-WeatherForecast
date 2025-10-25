@@ -40,7 +40,8 @@ if use_hdfs:
     weather_model_path = f"hdfs://{hdfs_namenode}/models/weather/random_forest_model"
     print(f"Loading weather model from HDFS: {weather_model_path}")
 else:
-    weather_model_path = "app/models/weather/random_forest_model"
+    # Use file:// prefix to force local filesystem when defaultFS is HDFS
+    weather_model_path = "file:///app/models/weather/random_forest_model"
     print(f"Loading weather model from local: {weather_model_path}")
 
 weather_model = PipelineModel.load(weather_model_path)
@@ -50,7 +51,8 @@ if use_hdfs:
     rain_model_path = f"hdfs://{hdfs_namenode}/models/amount_of_rain/logistic_regression_model"
     print(f"Loading rain model from HDFS: {rain_model_path}")
 else:
-    rain_model_path = "app/models/amount_of_rain/logistic_regression_model"
+    # Use file:// prefix to force local filesystem when defaultFS is HDFS
+    rain_model_path = "file:///app/models/rain/logistic_regression_model"
     print(f"Loading rain model from local: {rain_model_path}")
 
 rain_model = PipelineModel.load(rain_model_path)
@@ -197,6 +199,8 @@ def process_batch(batch_data):
         # Process rain predictions in batch if any
         if rain_batch:
             rain_df = spark.createDataFrame(pd.DataFrame(rain_batch))
+            # Drop 'prediction' column from weather model to avoid conflict with rain model
+            rain_df = rain_df.drop('prediction')
             rain_predictions = rain_model.transform(rain_df)
             rain_results = rain_predictions.select([c for c in rain_predictions.columns if c not in ['label', 'features', 'rawPrediction', 'probability']]).collect()
             
