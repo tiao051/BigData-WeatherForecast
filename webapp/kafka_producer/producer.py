@@ -42,19 +42,40 @@ def create_producer(bootstrap_servers):
             sys.exit(1)
 
 def load_dataset(file_path, limit=None):
-    """Load weather dataset from CSV file"""
+    """Load weather dataset from CSV file with 50/50 rain/no-rain balance"""
     try:
         df = pd.read_csv(file_path)
         
-        if limit and limit > 0:
-            df = df.head(limit)
-        else:
-            print(f"Loaded {len(df)} records")
+        # Separate rain and no-rain records
+        rain_df = df[df['predict'] == 'rain'].copy()
+        no_rain_df = df[df['predict'] == 'no rain'].copy()
         
-        return df
+        print(f"Original dataset: {len(rain_df)} rain, {len(no_rain_df)} no-rain records")
+        
+        # Get equal amounts from each class
+        min_size = min(len(rain_df), len(no_rain_df))
+        
+        if limit and limit > 0:
+            # If limit specified, take half from each class
+            samples_per_class = min(limit // 2, min_size)
+            rain_sample = rain_df.head(samples_per_class)
+            no_rain_sample = no_rain_df.head(samples_per_class)
+        else:
+            # Otherwise take all available (balanced)
+            rain_sample = rain_df.head(min_size)
+            no_rain_sample = no_rain_df.head(min_size)
+        
+        # Combine and shuffle
+        balanced_df = pd.concat([rain_sample, no_rain_sample], ignore_index=True)
+        balanced_df = balanced_df.sample(frac=1, random_state=42).reset_index(drop=True)
+        
+        print(f"Balanced dataset: {len(balanced_df)} total records (50% rain, 50% no-rain)")
+        
+        return balanced_df
     except FileNotFoundError:
         sys.exit(1)
     except Exception as e:
+        print(f"Error loading dataset: {e}")
         sys.exit(1)
 
 
@@ -83,7 +104,7 @@ def send_data(producer, topic_name, data_df, delay=0.1, continuous=False):
                 # Print progress every 10 records
                 if sent_count % 10 == 0 or index == 0:
                     print(f"[{sent_count}] Sent: Date={data.get('date_time', 'N/A')}, "
-                          f"Weather={data.get('weather', 'N/A')}, Temp={data.get('tempC', 'N/A')}°C")
+                          f"Weather={data.get('predict', 'N/A')}, Temp={data.get('tempC', 'N/A')}°C")
                 
                 # Delay between messages
                 if delay > 0:

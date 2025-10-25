@@ -10,11 +10,8 @@ from pyspark.ml import PipelineModel
 from app.services.predict_services import weather_prediction, amount_of_rain
 import copy
 
-# Import socketio for real-time push notifications
-try:
-    from app import socketio
-except ImportError:
-    socketio = None  # Fallback if not available
+# Don't import socketio here - it will be imported inside functions
+# to avoid circular import and ensure it's initialized
 
 # Disable checksum validation for Hadoop
 os.environ['SPARK_LOCAL_IP'] = '127.0.0.1'
@@ -84,107 +81,155 @@ def create_consumer():
     return consumer
 
 def consume_messages(consumer):
+    """Main consumer loop with error handling and recovery"""
     import pandas as pd
     from pyspark.sql.functions import col
     
     BATCH_SIZE = 100 
     batch = []
     
-    for message in consumer:
-        # Convert numeric string columns to float for model inference
-        numeric_columns = ['moon_illumination', 'time','tempC','tempF','windspeedMiles','windspeedKmph','winddirDegree', 'weatherCode','precipInches','humidity','visibility','visibilityMiles','pressure','pressureInches','cloudcover','HeatIndexC','HeatIndexF','DewPointC','DewPointF','WindChillC','WindChillF','WindGustMiles','WindGustKmph','FeelsLikeC','FeelsLikeF','uvIndex']
-        for column in numeric_columns:
-            float_value = float(message.value[column])
-            message.value[column] = float_value
+    print(f"Consumer started - batch size: {BATCH_SIZE}")
+    
+    try:
+        for message in consumer:
+            try:
+                # Convert numeric string columns to float for model inference
+                numeric_columns = ['moon_illumination', 'time','tempC','tempF','windspeedMiles','windspeedKmph','winddirDegree', 'weatherCode','precipInches','humidity','visibility','visibilityMiles','pressure','pressureInches','cloudcover','HeatIndexC','HeatIndexF','DewPointC','DewPointF','WindChillC','WindChillF','WindGustMiles','WindGustKmph','FeelsLikeC','FeelsLikeF','uvIndex']
+                for column in numeric_columns:
+                    float_value = float(message.value[column])
+                    message.value[column] = float_value
 
-        # Add to batch
-        batch.append(message.value)
-        
-        # Process batch when it reaches BATCH_SIZE
-        if len(batch) >= BATCH_SIZE:
+                # Add to batch
+                batch.append(message.value)
+                
+                # Process batch when it reaches BATCH_SIZE
+                if len(batch) >= BATCH_SIZE:
+                    process_batch(batch)
+                    batch = []
+            except Exception as e:
+                print(f"Error processing message: {e}")
+                continue  # Skip this message, continue with next
+                
+    except KeyboardInterrupt:
+        print("\nConsumer stopped by user")
+    except Exception as e:
+        print(f"FATAL Consumer error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        # Process remaining messages in batch before shutdown
+        if batch:
+            print(f"Processing final batch of {len(batch)} messages...")
             process_batch(batch)
-            batch = []
 
 def process_batch(batch_data):
-    """Process a batch of messages efficiently"""
+    """Process a batch of messages efficiently with error handling"""
     if not batch_data:
         return
     
-    import pandas as pd
-    from pyspark.sql.functions import col
-    
-    current_time = datetime.now()
-    
-    # Store raw data in MongoDB (bulk insert)
-    raw_data_batch = []
-    for data in batch_data:
-        data_copy = copy.deepcopy(data)
-        data_copy['createdAt'] = current_time
-        data_copy['updatedAt'] = current_time
-        raw_data_batch.append(data_copy)
-    
-    if raw_data_batch:
-        db.data.insert_many(raw_data_batch)
-    
-    # Create DataFrame for batch prediction
-    df = spark.createDataFrame(pd.DataFrame(batch_data))
-    
-    # Weather prediction for entire batch
-    weather_predictions = weather_model.transform(df)
-    weather_results = weather_predictions.select([c for c in weather_predictions.columns if c not in ['label', 'features', 'rawPrediction', 'probability']]).collect()
-    
-    # Process predictions
-    predictions_to_insert = []
-    rain_batch = []
-    
-    for i, row in enumerate(weather_results):
-        row_dict = row.asDict()
-        predict_value = convert_prediction(row_dict.pop('prediction', None))
-        row_dict['predict'] = predict_value
-        row_dict['predict_origin'] = batch_data[i]['predict']
-        row_dict['precip_mm_origin'] = batch_data[i]['precipMM']
-        row_dict['predicted_at'] = current_time
+    try:
+        import pandas as pd
+        from pyspark.sql.functions import col
+        import pytz
         
-        if predict_value == "rain":
-            rain_batch.append(row_dict)
-        else:
-            row_dict['rain_prediction'] = 0
-            predictions_to_insert.append(row_dict)
-    
-    # Process rain predictions in batch if any
-    if rain_batch:
-        rain_df = spark.createDataFrame(pd.DataFrame(rain_batch))
-        rain_predictions = rain_model.transform(rain_df)
-        rain_results = rain_predictions.select([c for c in rain_predictions.columns if c not in ['label', 'features', 'rawPrediction', 'probability']]).collect()
+        # Vietnam timezone
+        VN_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+        current_time = datetime.now(VN_TZ)  # Use Vietnam time
         
-        for row in rain_results:
-            row_dict = row.asDict()
-            row_dict['rain_prediction'] = map_label_to_precipMM(row_dict.pop('prediction'))
-            predictions_to_insert.append(row_dict)
-    
-    # Bulk insert predictions
-    if predictions_to_insert:
-        db.predict.insert_many(predictions_to_insert)
-        print(f"Processed batch: {len(predictions_to_insert)} predictions inserted")
+        # Create DataFrame for batch prediction
+        df = spark.createDataFrame(pd.DataFrame(batch_data))
         
-        # Emit real-time WebSocket event with new predictions
-        if socketio:
-            # Format predictions for WebSocket transmission
-            formatted_predictions = []
-            for pred in predictions_to_insert:
-                pred_dict = {}
-                for key, value in pred.items():
-                    if isinstance(value, datetime):
-                        pred_dict[key] = value.isoformat()
-                        pred_dict['date'] = value.strftime('%d/%m/%Y')
-                        pred_dict['time'] = value.strftime('%H:%M:%S')
-                    else:
-                        pred_dict[key] = value
-                formatted_predictions.append(pred_dict)
+        # Weather prediction for entire batch
+        weather_predictions = weather_model.transform(df)
+        weather_results = weather_predictions.select([c for c in weather_predictions.columns if c not in ['label', 'features', 'rawPrediction', 'probability']]).collect()
+        
+        # Process predictions - ONLY SAVE NECESSARY FIELDS
+        predictions_to_insert = []
+        rain_batch = []
+        rain_batch_indices = []  # Track original indices for rain predictions
+        
+        for i, row in enumerate(weather_results):
+            predict_value = convert_prediction(row['prediction'])
             
-            # Push new predictions to all connected clients
-            socketio.emit('new_predictions', {
-                'predictions': formatted_predictions,
-                'count': len(formatted_predictions)
-            }, namespace='/')
-            print(f"✓ WebSocket: Pushed {len(formatted_predictions)} predictions to clients")
+            # Prepare minimal prediction document with ONLY necessary fields
+            # Fields for home page display + statistics dashboard
+            pred_doc = {
+                'predict': predict_value,
+                'predict_origin': batch_data[i]['predict'],
+                'precip_mm_origin': batch_data[i]['precipMM'],
+                'predicted_at': current_time,
+                # Additional fields for statistics feature impact analysis
+                'tempC': batch_data[i].get('tempC'),
+                'humidity': batch_data[i].get('humidity'),
+                'pressure': batch_data[i].get('pressure'),
+                'windspeedKmph': batch_data[i].get('windspeedKmph')
+            }
+            
+            if predict_value == "rain":
+                # Store for rain amount prediction
+                rain_batch.append(row.asDict())
+                rain_batch_indices.append(len(predictions_to_insert))
+                predictions_to_insert.append(pred_doc)
+            else:
+                pred_doc['rain_prediction'] = 0
+                predictions_to_insert.append(pred_doc)
+        
+        # Process rain predictions in batch if any
+        if rain_batch:
+            rain_df = spark.createDataFrame(pd.DataFrame(rain_batch))
+            rain_predictions = rain_model.transform(rain_df)
+            rain_results = rain_predictions.select([c for c in rain_predictions.columns if c not in ['label', 'features', 'rawPrediction', 'probability']]).collect()
+            
+            # Update rain predictions with predicted rainfall amount
+            for idx, row in enumerate(rain_results):
+                original_idx = rain_batch_indices[idx]
+                predictions_to_insert[original_idx]['rain_prediction'] = map_label_to_precipMM(row['prediction'])
+        
+        # Bulk insert predictions
+        if predictions_to_insert:
+            db.predict.insert_many(predictions_to_insert)
+            print(f"Processed batch: {len(predictions_to_insert)} predictions inserted")
+            
+            # Invalidate cache count
+            try:
+                from app.controllers.home_controller import invalidate_count_cache
+                invalidate_count_cache()
+            except Exception as cache_err:
+                print(f"Cache invalidation warning: {cache_err}")
+            
+            # Import socketio here to ensure it's initialized
+            try:
+                from app import socketio
+            except ImportError:
+                socketio = None
+            
+            # Emit real-time WebSocket event with new predictions
+            if socketio:
+                try:
+                    # Emit each prediction individually for real-time streaming
+                    for pred in predictions_to_insert:
+                        pred_dict = {}
+                        for key, value in pred.items():
+                            if key == '_id':
+                                pred_dict[key] = str(value)  # Convert ObjectId to string
+                            elif isinstance(value, datetime):
+                                pred_dict[key] = value.isoformat()
+                                pred_dict['date'] = value.strftime('%d/%m/%Y')
+                                pred_dict['time'] = value.strftime('%H:%M:%S')
+                            else:
+                                pred_dict[key] = value
+                        
+                        # Emit individual prediction immediately
+                        socketio.emit('new_prediction', {
+                            'prediction': pred_dict
+                        }, namespace='/')
+                    
+                    print(f"WebSocket: Streamed {len(predictions_to_insert)} predictions to clients")
+                except Exception as ws_error:
+                    print(f"WebSocket emit error: {ws_error}")
+                    import traceback
+                    traceback.print_exc()
+    except Exception as e:
+        print(f"Error processing batch: {e}")
+        import traceback
+        traceback.print_exc()

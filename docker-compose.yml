@@ -78,8 +78,8 @@ services:
       DATASET_PATH: /app/dataset/weather_dataset.csv
     volumes:
       - ./machine_learning/dataset:/app/dataset:ro
-    # Fast mode: --delay 0 for maximum throughput with batch processing
-    command: ["python", "producer.py", "--continuous", "--delay", "0.05", "--records", "100"]
+    # Optimized: ~100 msg/s for real-time streaming
+    command: ["python", "producer.py", "--continuous", "--delay", "0.01", "--records", "all"]
     restart: unless-stopped
     networks:
       - weather-network
