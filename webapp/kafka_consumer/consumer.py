@@ -7,7 +7,6 @@ from database.mongodb import db
 from datetime import datetime
 from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
-from app.services.predict_services import weather_prediction, amount_of_rain
 from kafka_consumer.hdfs_utils import save_to_hdfs
 import copy
 

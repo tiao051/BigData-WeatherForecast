@@ -8,7 +8,7 @@ Start-Sleep -Seconds 30
 Write-Host "`nCreating HDFS directories..." -ForegroundColor Green
 docker exec namenode hdfs dfs -mkdir -p /dataset
 docker exec namenode hdfs dfs -mkdir -p /models/weather
-docker exec namenode hdfs dfs -mkdir -p /models/amount_of_rain
+docker exec namenode hdfs dfs -mkdir -p /models/rain
 docker exec namenode hdfs dfs -mkdir -p /predictions
 
 Write-Host "`nUploading dataset to HDFS..." -ForegroundColor Green

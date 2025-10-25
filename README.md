@@ -43,7 +43,7 @@ This will start:
 - HDFS NameNode (ports 9870, 9000) + 3 DataNodes
 - Web Application (port 5000)
 
-**Note on HDFS:** The system includes a full HDFS cluster for demonstration. However, ML models are loaded from the local filesystem (`USE_HDFS=false` in `.env`) to avoid checksum errors that can occur when copying Spark ML models to HDFS. The HDFS infrastructure, initialization scripts (`scripts/init_hdfs.ps1`, `scripts/deploy_models.ps1`), and related code are maintained to demonstrate HDFS integration capabilities.
+**Note on HDFS:** The system includes a full HDFS cluster for demonstration. ML models are loaded from the local filesystem by default (`USE_HDFS=false` in `.env`) for reliability. The HDFS infrastructure, initialization scripts (`scripts/init_hdfs.ps1`, `scripts/deploy_models.ps1`), and related code are maintained to demonstrate HDFS integration capabilities.
 
 Access the web interface at: `http://localhost:5000`
 Access HDFS Web UI at: `http://localhost:9870`
@@ -89,17 +89,9 @@ The project has been developed and tested on Windows and Linux using Docker.
 
 The project includes pre-trained models. However, if you want to retrain:
 
-Run `weather-forecast.ipynb` and `rainfall-prediction.ipynb` in `machine_learning/notebooks` to export models.
+Run `weather-forecast.ipynb` and `rainfall-prediction.ipynb` in `machine_learning/notebooks` to export models to `machine_learning/models/` directory.
 
-- Models from `weather-forecast.ipynb` go to `webapp/app/models/weather`
-- Models from `rainfall-prediction.ipynb` go to `webapp/app/models/amount_of_rain`
-
-**Important:** After updating models, delete all `.crc` checksum files in the model directories before rebuilding Docker images.
-
-```bash
-# Example: Delete checksum files
-Get-ChildItem -Path .\webapp\app\models -Filter "*.crc" -Recurse | Remove-Item
-```
+The models are automatically copied into Docker containers during build via `Dockerfile`.
 
 ### 2. Configure Environment Variables (Already Done in Quick Start)
 
@@ -274,17 +266,11 @@ Each model consists of a PySpark ML Pipeline with:
 
 To retrain and update models:
 
-1. Run the training notebooks to export new models
-2. **Delete all `.crc` checksum files** in model directories
-   ```bash
-   Get-ChildItem -Path .\webapp\app\models -Filter "*.crc" -Recurse | Remove-Item
-   ```
-3. Rebuild Docker images
+1. Run the training notebooks in `machine_learning/notebooks/` to export new models to `machine_learning/models/`
+2. Rebuild Docker images to copy updated models into containers
    ```bash
    docker-compose up --build
    ```
-
-**Note:** Checksum files cause model loading errors when models are copied to Docker containers.
 
 ## Architecture
 
@@ -298,8 +284,7 @@ The project includes a complete Hadoop HDFS cluster with:
 
 1. **Local Filesystem (Default - Recommended)**
    - Set `USE_HDFS=false` in `.env`
-   - Models loaded from `/app/models/` in container
-   - Avoids checksum errors from corrupted HDFS files
+   - Models loaded from `/app/models/` in container (copied during Docker build)
    - Faster startup and more reliable
 
 2. **HDFS Storage (For Demonstration)**
@@ -309,7 +294,7 @@ The project includes a complete Hadoop HDFS cluster with:
    - Models loaded from `hdfs://namenode:9000/models/`
    
 **Why Local by Default?**
-Spark ML models contain metadata files that can get corrupted during HDFS transfers, causing checksum validation errors. The local filesystem approach is more reliable for containerized deployments while maintaining all HDFS infrastructure for learning and demonstration.
+The local filesystem approach is more reliable for containerized deployments while maintaining all HDFS infrastructure for learning and demonstration purposes.
 
 **HDFS Scripts Included:**
 - `scripts/init_hdfs.ps1` - Initialize HDFS directories
@@ -340,8 +325,8 @@ webapp:5000     # Web interface
 
 **Model Loading Strategy:**
 - Models are stored in `machine_learning/models/` on the host
-- Docker copies models to `/app/models/` in the webapp container
-- By default, `USE_HDFS=false` loads models from local filesystem to avoid HDFS checksum errors
+- Docker copies models to `/app/models/` in the webapp container during build
+- By default, `USE_HDFS=false` loads models from local filesystem for reliability
 - HDFS cluster and deployment scripts are included for demonstration purposes
 - To use HDFS: set `USE_HDFS=true` in `.env` and run `scripts/deploy_models.ps1`
 
