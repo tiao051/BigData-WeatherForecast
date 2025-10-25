@@ -64,6 +64,91 @@ services:
     networks:
       - weather-network
 
+  # HDFS NameNode - Quản lý metadata
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    ports:
+      - "9870:9870"  # HDFS Web UI
+      - "9000:9000"  # HDFS API
+    volumes:
+      - namenode:/hadoop/dfs/name
+      - ./machine_learning/dataset:/dataset:ro
+      - ./machine_learning/models:/models:ro
+    environment:
+      - CLUSTER_NAME=weather-hdfs-cluster
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - HDFS_CONF_dfs_replication=2
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false
+      - HDFS_CONF_dfs_permissions_enabled=false
+    networks:
+      - weather-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9870"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # HDFS DataNode 1
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    restart: always
+    volumes:
+      - datanode1:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
+      CORE_CONF_hadoop_http_staticuser_user: root
+      HDFS_CONF_dfs_replication: 2
+      HDFS_CONF_dfs_permissions_enabled: false
+    depends_on:
+      namenode:
+        condition: service_healthy
+    networks:
+      - weather-network
+
+  # HDFS DataNode 2
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    restart: always
+    volumes:
+      - datanode2:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
+      CORE_CONF_hadoop_http_staticuser_user: root
+      HDFS_CONF_dfs_replication: 2
+      HDFS_CONF_dfs_permissions_enabled: false
+    depends_on:
+      namenode:
+        condition: service_healthy
+    networks:
+      - weather-network
+
+  # HDFS DataNode 3
+  datanode3:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode3
+    restart: always
+    volumes:
+      - datanode3:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
+      CORE_CONF_hadoop_http_staticuser_user: root
+      HDFS_CONF_dfs_replication: 2
+      HDFS_CONF_dfs_permissions_enabled: false
+    depends_on:
+      namenode:
+        condition: service_healthy
+    networks:
+      - weather-network
+
   producer:
     build:
       context: ./webapp/kafka_producer
@@ -94,6 +179,8 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+      namenode:
+        condition: service_healthy
     ports:
       - "${PORT:-5000}:5000"
     environment:
@@ -107,6 +194,8 @@ services:
       MONGO_PASSWORD: ${MONGO_PASSWORD}
       DB_NAME: ${DB_NAME}
       DEBUG: ${DEBUG}
+      HDFS_NAMENODE: namenode:9000
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || curl -f http://localhost:5000/ || exit 1"]
       interval: 30s
@@ -146,3 +235,7 @@ volumes:
   kafka_data:
   zookeeper_data:
   zookeeper_logs:
+  namenode:
+  datanode1:
+  datanode2:
+  datanode3:

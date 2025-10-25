@@ -8,6 +8,7 @@ from datetime import datetime
 from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
 from app.services.predict_services import weather_prediction, amount_of_rain
+from kafka_consumer.hdfs_utils import save_to_hdfs
 import copy
 
 # Don't import socketio here - it will be imported inside functions
@@ -16,23 +17,42 @@ import copy
 # Disable checksum validation for Hadoop
 os.environ['SPARK_LOCAL_IP'] = '127.0.0.1'
 
+# Get HDFS configuration from environment
+hdfs_namenode = os.environ.get("HDFS_NAMENODE", "namenode:9000")
+use_hdfs = os.environ.get("USE_HDFS", "true").lower() == "true"
+
 spark = SparkSession.builder \
     .appName("BigData_Weather_Forecast") \
+    .config("spark.hadoop.fs.defaultFS", f"hdfs://{hdfs_namenode}") \
     .config("spark.hadoop.fs.file.impl.disable.cache", "true") \
     .config("spark.hadoop.io.compression.codecs", "") \
     .config("spark.hadoop.mapreduce.input.fileinputformat.input.dir.recursive", "true") \
+    .config("spark.hadoop.dfs.client.use.datanode.hostname", "true") \
+    .config("spark.hadoop.dfs.replication", "2") \
     .getOrCreate()
 
 # Disable checksum
 spark.sparkContext._jsc.hadoopConfiguration().setBoolean("fs.file.impl.disable.cache", True)
 spark.sparkContext._jsc.hadoopConfiguration().set("io.file.buffer.size", "65536")
 
-# Load weather prediction model
-weather_model_path = "app/models/weather/random_forest_model"
+# Load weather prediction model - from HDFS if enabled, else local
+if use_hdfs:
+    weather_model_path = f"hdfs://{hdfs_namenode}/models/weather/random_forest_model"
+    print(f"Loading weather model from HDFS: {weather_model_path}")
+else:
+    weather_model_path = "app/models/weather/random_forest_model"
+    print(f"Loading weather model from local: {weather_model_path}")
+
 weather_model = PipelineModel.load(weather_model_path)
 
-# Load rainfall amount prediction model
-rain_model_path = "app/models/amount_of_rain/logistic_regression_model"
+# Load rainfall amount prediction model - from HDFS if enabled, else local
+if use_hdfs:
+    rain_model_path = f"hdfs://{hdfs_namenode}/models/amount_of_rain/logistic_regression_model"
+    print(f"Loading rain model from HDFS: {rain_model_path}")
+else:
+    rain_model_path = "app/models/amount_of_rain/logistic_regression_model"
+    print(f"Loading rain model from local: {rain_model_path}")
+
 rain_model = PipelineModel.load(rain_model_path)
 
 # Convert weather prediction numeric output to string label
@@ -185,10 +205,17 @@ def process_batch(batch_data):
                 original_idx = rain_batch_indices[idx]
                 predictions_to_insert[original_idx]['rain_prediction'] = map_label_to_precipMM(row['prediction'])
         
-        # Bulk insert predictions
+        # Bulk insert to MongoDB
         if predictions_to_insert:
             db.predict.insert_many(predictions_to_insert)
             print(f"Processed batch: {len(predictions_to_insert)} predictions inserted")
+            
+            # Optional: Save to HDFS for long-term analytics
+            if use_hdfs:
+                try:
+                    save_to_hdfs(predictions_to_insert, spark, hdfs_namenode)
+                except Exception as hdfs_error:
+                    print(f"HDFS save failed (continuing): {hdfs_error}")
             
             # Invalidate cache count
             try:
