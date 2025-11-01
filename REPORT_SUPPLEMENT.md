@@ -129,14 +129,14 @@ VectorAssembler(
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   WEATHER PREDICTION PIPELINE                    │
+│                   WEATHER PREDICTION PIPELINE                   │
 └─────────────────────────────────────────────────────────────────┘
 
 INPUT: Raw CSV Data (31 columns)
    ↓
 ┌─ STAGE 0: Label Encoding ────────────────────────────────────┐
 │  StringIndexer(inputCol='predict', outputCol='label')        │
-│  Output: label = 1.0 (rain) or 0.0 (no rain)               │
+│  Output: label = 1.0 (rain) or 0.0 (no rain)                 │
 └──────────────────────────────────────────────────────────────┘
    ↓
 ┌─ STAGES 1-6: Categorical Feature Encoding ───────────────────┐
@@ -145,7 +145,7 @@ INPUT: Raw CSV Data (31 columns)
 │  Stage 3: moonrise → moonriseIndex (0-N)                     │
 │  Stage 4: moonset → moonsetIndex (0-N)                       │
 │  Stage 5: moon_phase → moon_phaseIndex (0-N)                 │
-│  Stage 6: winddir16Point → WIndex (0-15, since 16 values)   │
+│  Stage 6: winddir16Point → WIndex (0-15, since 16 values)    │
 └──────────────────────────────────────────────────────────────┘
    ↓
 ┌─ STAGE 7: Feature Assembly ──────────────────────────────────┐
@@ -159,19 +159,19 @@ INPUT: Raw CSV Data (31 columns)
 │                    HeatIndexF, DewPointC, DewPointC,         │
 │                    WindChillC, WindChillF, WindGustMiles,    │
 │                    WindGustKmph, FeelsLikeC, FeelsLikeF,     │
-│                    uvIndex]                                   │
+│                    uvIndex]                                  │
 │  Output: features (31-dimensional vector)                    │
 └──────────────────────────────────────────────────────────────┘
    ↓
 ┌─ STAGE 8: RandomForestClassifier ────────────────────────────┐
-│  Configuration:                                               │
+│  Configuration:                                              │
 │    - numTrees: 100                                           │
 │    - maxDepth: 10                                            │
-│    - maxBins: 1500 (để xử lý dữ liệu lớn)                   │
-│  Output:                                                      │
-│    - prediction: 1.0 (rain) or 0.0 (no rain)               │
-│    - probability: [prob_no_rain, prob_rain]                 │
-│    - rawPrediction: [sum_votes_class0, sum_votes_class1]    │
+│    - maxBins: 1500 (để xử lý dữ liệu lớn)                    │
+│  Output:                                                     │
+│    - prediction: 1.0 (rain) or 0.0 (no rain)                 │
+│    - probability: [prob_no_rain, prob_rain]                  │
+│    - rawPrediction: [sum_votes_class0, sum_votes_class1]     │
 └──────────────────────────────────────────────────────────────┘
    ↓
 OUTPUT: 
@@ -186,7 +186,7 @@ OUTPUT:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                  RAINFALL PREDICTION PIPELINE                    │
+│                  RAINFALL PREDICTION PIPELINE                   │
 └─────────────────────────────────────────────────────────────────┘
 
 INPUT: Raw CSV Data (31 columns) + Only samples where predict='rain'
@@ -194,18 +194,18 @@ INPUT: Raw CSV Data (31 columns) + Only samples where predict='rain'
 [STAGES 0-7: GIỐNG Weather Model]
    ↓
 ┌─ STAGE 8: LogisticRegression (Multiclass) ──────────────────┐
-│  Configuration:                                               │
+│  Configuration:                                             │
 │    - regParam: 0.0 (default)                                │
 │    - elasticNetParam: 0.0 (L2 regularization)               │
 │    - maxIter: 100                                           │
-│  MulticlassClassification:                                   │
+│  MulticlassClassification:                                  │
 │    - 167 classes (label indices 0-166)                      │
-│    - Mỗi class đại diện cho 1 lượng mưa cụ thể (mm)        │
-│  Output:                                                      │
+│    - Mỗi class đại diện cho 1 lượng mưa cụ thể (mm)         │
+│  Output:                                                    │
 │    - prediction ∈ {0, 1, 2, ..., 166}                       │
-│    - probability: vector của 167 giá trị [0,1]            │
-│    - rawPrediction: log-odds cho 167 classes               │
-└──────────────────────────────────────────────────────────────┘
+│    - probability: vector của 167 giá trị [0,1]              │
+│    - rawPrediction: log-odds cho 167 classes                │
+└─────────────────────────────────────────────────────────────┘
    ↓
 OUTPUT: prediction ∈ {0.0, 1.0, ..., 166.0}
 
@@ -283,7 +283,7 @@ df = df.select(selected_columns).na.drop()
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                   HDFS ARCHITECTURE                       │
+│                   HDFS ARCHITECTURE                      │
 └──────────────────────────────────────────────────────────┘
 
 ┌─────────────────────┐
